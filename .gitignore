@@ -1,0 +1,73 @@
+############################
+# Maven / Java
+############################
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+############################
+# Node / Vaadin frontend
+############################
+node_modules/
+src/main/frontend/node_modules/
+src/main/frontend/.cache/
+src/main/frontend/generated/
+src/main/frontend/generated/**
+src/main/frontend/target/
+
+# Vaadin local/dev
+.vaadin/
+
+
+############################
+# Properties files
+############################
+*.properties
+
+############################
+# Logs
+############################
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################
+# IntelliJ IDEA
+############################
+.idea/
+*.iml
+*.iws
+*.ipr
+
+############################
+# Eclipse / STS
+############################
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache
+.apt_generated
+.factorypath
+
+############################
+# NetBeans
+############################
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+############################
+# VS Code
+############################
+.vscode/
+
+############################
+# OS files
+############################
+Thumbs.db
+ehthumbs.db
+Desktop.ini
