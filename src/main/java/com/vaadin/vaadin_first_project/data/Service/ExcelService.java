@@ -1,15 +1,14 @@
 package com.vaadin.vaadin_first_project.data.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.helger.commons.codec.IByteArrayStreamDecoder;
 import com.vaadin.vaadin_first_project.data.Entity.ExcelDocument;
-import com.vaadin.vaadin_first_project.data.Univer.dto.CellDiff;
 import com.vaadin.vaadin_first_project.data.Univer.dto.UniverCell;
 import com.vaadin.vaadin_first_project.data.Univer.dto.UniverWorkbookData;
 import com.vaadin.vaadin_first_project.data.Univer.dto.UniverWorksheetData;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
  import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -91,14 +90,108 @@ public class ExcelService {
         }
     }
 
-    public void validateDiffs(List<CellDiff> diffs){
 
 
+    public byte[] applySnapshotValues(Long documentId, UniverWorkbookData snapshot) {
+        byte[] base = excelDocumentService.getExcelDocument(documentId).getData();
+
+        try (InputStream is = new ByteArrayInputStream(base);
+             Workbook wb = WorkbookFactory.create(is);
+             ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+
+            List<String> order = snapshot.sheetOrder();
+            if (order == null || order.isEmpty()) {
+                throw new IllegalArgumentException("Snapshot sheetOrder is empty");
+            }
+            
+        for (int i = 0; i < order.size(); i++) {
+            String sheetId = order.get(i);
+            UniverWorksheetData ws = snapshot.sheets().get(sheetId);
+            if (ws == null) continue;
+
+            Sheet poiSheet = resolvePoiSheet(wb, i, ws);
+            applyWorksheetValues(poiSheet, ws);
+        }
+
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            wb.write(bos);
+            return bos.toByteArray();
+        }
+
+    } catch (Exception e) {
+        throw new RuntimeException("applySnapshotValues failed", e);
+    }
+ }
+
+    private void applyWorksheetValues(Sheet sheet, UniverWorksheetData ws) {
+        int rowCount = ws.rowCount() == null ? 0 : ws.rowCount();
+        int colCount = ws.columnCount() == null ? 0 : ws.columnCount();
+
+
+        Map<Integer, Map<Integer, UniverCell>> cellData = ws.cellData();
+        if (cellData == null) return;
+
+        for (var rowEntry : cellData.entrySet()) { // rowIndex (key) -> (colIndex -> UniverCell) (value)
+            int r = rowEntry.getKey();
+            if (r < 0 || (rowCount > 0 && r >= rowCount)) continue;
+
+            Row row = sheet.getRow(r);
+            if (row == null) row = sheet.createRow(r);
+
+            Map<Integer, UniverCell> cols = rowEntry.getValue();
+            if (cols == null) continue;
+
+            for (var colEntry : cols.entrySet()) { // colIndex (key) -> UniverCell (value)
+                int c = colEntry.getKey();
+                if (c < 0 || (colCount > 0 && c >= colCount)) continue;
+
+                UniverCell uCell = colEntry.getValue();
+                Object v = (uCell == null) ? null : uCell.v();
+
+                Cell cell = row.getCell(c);
+                if (cell == null) cell = row.createCell(c);
+
+                setCellValue(cell, v);
+            }
+        }
+    }
+    private void setCellValue(Cell cell, Object v) {
+        switch (v) {
+            case null -> {
+                cell.setBlank();
+                return;
+            }
+            case Number n -> {
+                cell.setCellValue(n.doubleValue());
+                return;
+            }
+            case Boolean b -> {
+                cell.setCellValue(b);
+                return;
+            }
+             case String s when s.isBlank() -> {
+                cell.setCellValue("");
+                return;
+            }
+            default -> {
+            }
+        }
+        cell.setCellValue(String.valueOf(v));
     }
 
-    public byte[] applyDiffs(List<CellDiff> diffs){
-        return new byte[0];
+    private Sheet resolvePoiSheet(Workbook wb, int i, UniverWorksheetData ws) {
+        if (i < wb.getNumberOfSheets()) {
+            return wb.getSheetAt(i);
+        }
+        if (ws.name() != null) {
+            Sheet byName = wb.getSheet(ws.name());
+            if (byName != null) return byName;
+            return wb.createSheet(ws.name());
+        }
+        return wb.createSheet("Sheet" + (i + 1));
     }
+
+
 
     private static final record UsedRange(int lastRow, int lastCol) { }
 

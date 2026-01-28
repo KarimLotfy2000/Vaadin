@@ -4,8 +4,7 @@ import '@univerjs/presets'
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core'
 import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US'
  import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets'
- import locale from "@univerjs/sheets/locale/en-US";
-import '@univerjs/design/lib/index.css';
+ import '@univerjs/design/lib/index.css';
 import '@univerjs/sheets-ui/lib/index.css';
 import '@univerjs/preset-sheets-core/lib/index.css';
 
@@ -82,6 +81,19 @@ export class UniverSheet extends HTMLElement {
 
         this.univerAPI.createWorkbook(workbookData);
     }
+
+    async requestSnapshot() {
+         const workbook = this.univerAPI?.getActiveWorkbook?.();
+        if (!workbook?.save) throw new Error('Active workbook or save() not available');
+        const snapshot =  workbook.save();
+        const json = JSON.stringify(snapshot);
+
+        await (this as any).$server.saveSnapshot(json);
+
+        console.log('Requesting snapshot...', workbook);
+
+    }
+
 }
 
 customElements.define('univer-sheet', UniverSheet);

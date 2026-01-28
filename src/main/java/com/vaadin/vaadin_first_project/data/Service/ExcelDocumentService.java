@@ -5,6 +5,7 @@ import com.vaadin.vaadin_first_project.data.Repository.ExcelDocumentRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.List;
 
 @Service
@@ -32,19 +33,22 @@ public class ExcelDocumentService {
         return repository.findAll();
     }
 
+
+
     @Transactional
     public ExcelDocument getExcelDocument(Long id) {
         return repository.findById(id).orElseThrow(()->new IllegalArgumentException("Excel document not found with id: " + id));
     }
 
-    @Transactional
-    public void overrideExcelDocument(Long id, byte[] data) {
-        ExcelDocument document = getExcelDocument(id);
-        document.setData(data);
-        repository.save(document);
+
+   @Transactional
+    public void saveAsCopy(Long documentId, byte[] updated) {
+        ExcelDocument original = getExcelDocument(documentId);
+        ExcelDocument copy = new ExcelDocument();
+        copy.setFilename("Copy_"+ original.getFilename());
+        copy.setContentType(original.getContentType());
+        copy.setData(updated);
+        repository.save(copy);
+
     }
-
-
-
-
 }
