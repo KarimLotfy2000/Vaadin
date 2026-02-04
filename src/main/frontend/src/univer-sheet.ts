@@ -1,12 +1,9 @@
-import '@univerjs/sheets/facade';
-import '@univerjs/sheets-ui/facade';
-import '@univerjs/presets'
+
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core'
 import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US'
- import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets'
- import '@univerjs/design/lib/index.css';
-import '@univerjs/sheets-ui/lib/index.css';
-import '@univerjs/preset-sheets-core/lib/index.css';
+import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets'
+ import '@univerjs/preset-sheets-core/lib/index.css';
+
 
 
 
@@ -43,6 +40,7 @@ export class UniverSheet extends HTMLElement {
             locale: LocaleType.EN_US,
             locales: {
                 [LocaleType.EN_US]: mergeLocales(sheetsCoreEnUS),
+
             },
             presets: [
                 UniverSheetsCorePreset({
@@ -72,6 +70,9 @@ export class UniverSheet extends HTMLElement {
         await this.initPromise;
 
         const workbookData = JSON.parse(workbookJson);
+
+        console.log('Rendering workbook...', workbookData);
+
         if (!workbookData.locale) workbookData.locale = 'en-US';
         if (!workbookData.appVersion) workbookData.appVersion = '0.10.2';
 
@@ -90,7 +91,7 @@ export class UniverSheet extends HTMLElement {
 
         await (this as any).$server.saveSnapshot(json);
 
-        console.log('Requesting snapshot...', workbook);
+        console.log('Requesting snapshot...', snapshot);
 
     }
 

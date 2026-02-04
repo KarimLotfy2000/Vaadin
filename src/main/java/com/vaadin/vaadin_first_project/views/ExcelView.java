@@ -12,8 +12,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.StreamResource;
-import com.vaadin.flow.server.streams.DownloadHandler;
+ import com.vaadin.flow.server.streams.DownloadHandler;
 import com.vaadin.flow.server.streams.DownloadResponse;
 import com.vaadin.flow.server.streams.InMemoryUploadHandler;
 import com.vaadin.flow.server.streams.UploadHandler;
@@ -27,7 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
-@Route(value = "excel-editor", layout = MainLayout.class)
+@Route(value = "excel-editor")
 public class ExcelView extends VerticalLayout {
 
     private final ExcelDocumentService docService;
@@ -41,10 +40,7 @@ public class ExcelView extends VerticalLayout {
     private final UniverSheetComponent univer;
     private final VerticalLayout editorWrapper = new VerticalLayout();
 
-    private Upload upload;
-    private Button renderBtn;
-    private Button refreshBtn;
-    private Button saveAsCopyBtn;
+    private final Button saveAsCopyBtn;
 
     public ExcelView(ExcelDocumentService docService, ExcelService excelService) {
         this.docService = docService;
@@ -52,16 +48,16 @@ public class ExcelView extends VerticalLayout {
 
         univer = new UniverSheetComponent(excelService, docService);
 
-        upload = buildUpload();
-        renderBtn = buildRenderButton();
-        refreshBtn = new Button("Liste aktualisieren", e -> refreshGrid());
+        Upload upload = buildUpload();
+        Button renderBtn = buildRenderButton();
+        Button refreshBtn = new Button("Liste aktualisieren", e -> refreshGrid());
         saveAsCopyBtn = new Button("Als Kopie speichern ", e-> requestSnapShot());
         saveAsCopyBtn.setVisible(false);
 
         configureRootLayout();
         configureGrid();
 
-        configureEditorArea();          // configure + add children ONCE
+        configureEditorArea();          
         editorWrapper.setVisible(false); // hide container initially
 
         add(

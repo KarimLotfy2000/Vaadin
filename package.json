@@ -5,11 +5,8 @@
   "dependencies": {
     "@polymer/polymer": "3.5.2",
     "@univerjs/core": "^0.15.3",
-    "@univerjs/design": "^0.15.3",
     "@univerjs/preset-sheets-core": "^0.15.3",
     "@univerjs/presets": "^0.15.3",
-    "@univerjs/sheets": "^0.15.3",
-    "@univerjs/sheets-ui": "^0.15.3",
     "@vaadin/bundles": "24.9.6",
     "@vaadin/common-frontend": "0.0.19",
     "@vaadin/polymer-legacy-adapter": "24.9.6",
@@ -87,7 +84,7 @@
       "workbox-core": "7.3.0",
       "workbox-precaching": "7.3.0"
     },
-    "hash": "64ebbf65be03f580b03d3b6762fa06d3d43867d5993679d567d5335a69435ca4"
+    "hash": "6e70cc5c4cce7ec465f12fe3561a111e0389a80dac82a8592563dde0a4079e20"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -166,10 +163,7 @@
     "@vaadin/vertical-layout": "24.9.6",
     "@vaadin/virtual-list": "24.9.6",
     "@univerjs/core": "$@univerjs/core",
-    "@univerjs/sheets": "$@univerjs/sheets",
-    "@univerjs/sheets-ui": "$@univerjs/sheets-ui",
     "@univerjs/preset-sheets-core": "$@univerjs/preset-sheets-core",
-    "@univerjs/presets": "$@univerjs/presets",
-    "@univerjs/design": "$@univerjs/design"
+    "@univerjs/presets": "$@univerjs/presets"
   }
 }

@@ -3,7 +3,6 @@ package com.vaadin.vaadin_first_project.views.components;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vaadin.flow.component.ClientCallable;
-import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Tag;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -49,7 +48,7 @@ public class UniverSheetComponent extends VerticalLayout {
 
         try {
             UniverWorkbookData snapshot = OM.readValue(snapshotJson, UniverWorkbookData.class);
-            byte[] updated = excelService.applySnapshotValues(documentId, snapshot);
+            byte[] updated = excelService.applySnapShot(documentId, snapshot);
             documentService.saveAsCopy(documentId, updated);
         } catch (Exception e) {
             throw new RuntimeException("saveSnapshot failed", e);

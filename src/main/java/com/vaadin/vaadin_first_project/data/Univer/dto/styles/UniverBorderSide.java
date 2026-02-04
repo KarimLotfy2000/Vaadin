@@ -1,0 +1,11 @@
+package com.vaadin.vaadin_first_project.data.Univer.dto.styles;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record UniverBorderSide(
+        Integer s, //style id (thin, thick, dashed, dotted, etc.)
+        UniverRgbColor cl // color
+) {}

@@ -1,31 +1,29 @@
 package com.vaadin.vaadin_first_project.data.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vaadin.vaadin_first_project.data.Entity.ExcelDocument;
-import com.vaadin.vaadin_first_project.data.Univer.dto.UniverCell;
-import com.vaadin.vaadin_first_project.data.Univer.dto.UniverWorkbookData;
-import com.vaadin.vaadin_first_project.data.Univer.dto.UniverWorksheetData;
+ import com.vaadin.vaadin_first_project.data.Entity.ExcelDocument;
+import com.vaadin.vaadin_first_project.data.Univer.utils.PoiToUniverStyleMapper;
+ import com.vaadin.vaadin_first_project.data.Univer.utils.UniverToPoiStyleMapper;
+ import com.vaadin.vaadin_first_project.data.Univer.dto.*;
+import com.vaadin.vaadin_first_project.data.Univer.dto.styles.*;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.springframework.stereotype.Service;
  import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class ExcelService {
 
     private final ExcelDocumentService excelDocumentService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ExcelService(ExcelDocumentService excelDocumentService) {
         this.excelDocumentService = excelDocumentService;
     }
 
+     //------------------Convert Excel document to Univer format ------------------
     public UniverWorkbookData toUniverWorkbook(Long id){
         ExcelDocument document = excelDocumentService.getExcelDocument(id);
         byte[] data = document.getData();
@@ -38,8 +36,19 @@ public class ExcelService {
 
             UsedRange usedRange = detectUsedRange(sheet);
             Map<Integer, Map<Integer, UniverCell>> cellData = new HashMap<>(); // rowIndex -> (colIndex -> UniverCell)
-            DataFormatter dataFormatter = new DataFormatter();
 
+            // Merged regions
+            List<UniverRange> mergeData = new ArrayList<>();
+            for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
+                CellRangeAddress r = sheet.getMergedRegion(i);
+                mergeData.add(new UniverRange(
+                        r.getFirstRow(),
+                        r.getFirstColumn(),
+                        r.getLastRow(),
+                        r.getLastColumn()
+                ));
+            }
+            // Cell data
             for (int r = 0; r<= usedRange.lastRow; r++){
                 Row row = sheet.getRow(r);
                 if(row == null) continue;
@@ -50,38 +59,43 @@ public class ExcelService {
 
                     if(cell == null) continue;
 
-                    String cellValue = dataFormatter.formatCellValue(cell);
+                    UniverCell u = convertPoiCellToUniverCell(wb, cell);
 
-                    if (cellValue == null || cellValue.isBlank()) continue;
+                    if (u == null) continue;
+
                     if (rowMap == null) rowMap = new HashMap<>();
 
-                    rowMap.put(c,new UniverCell(cellValue));
+                    if (rowMap == null) rowMap = new HashMap<>();
+                    rowMap.put(c, u);
                 }
                 if (rowMap != null) cellData.put(r,rowMap);
 
 
                 }
-
+            // Ensure minimum size
             int minRows = 100;   // to ensure height of Univer sheet
             int minCols = 26;
             int rowCount = Math.max(usedRange.lastRow + 1, minRows);
             int colCount = Math.max(usedRange.lastCol + 1, minCols);
+             // Create UniverWorksheetData
             UniverWorksheetData worksheetData = new UniverWorksheetData(
                     sheetId,
                     sheet.getSheetName(),
                     rowCount,
                     colCount,
+                    mergeData,
                     cellData
             );
-
+            // Create sheets map
             Map<String, UniverWorksheetData> sheets = Map.of(sheetId, worksheetData);
-
+            // Create and return UniverWorkbookData
             return new UniverWorkbookData(
                     workbookId,
                     document.getFilename(),
                     "1.0.0",
                     "en-US",
                     List.of(sheetId),
+                    Collections.emptyMap(), // styles can be added later
                     sheets
             );
 
@@ -90,27 +104,60 @@ public class ExcelService {
         }
     }
 
+    // Convert a POI Cell to a UniverCell
+    private UniverCell convertPoiCellToUniverCell(Workbook wb, Cell cell) {
+        CellStyle cs = cell.getCellStyle();
+        UniverStyleData style = PoiToUniverStyleMapper.mapStyle(wb, cs);
+
+        Object v = null;
+        Integer t = null;
+
+        switch (cell.getCellType()) {
+            case STRING -> { v = cell.getStringCellValue(); t = 1; }
+            case BOOLEAN -> { v = cell.getBooleanCellValue() ? 1 : 0; t = 3; }
+            case NUMERIC -> { v = cell.getNumericCellValue(); t = 2; }
+            case BLANK -> {}
+            default -> {
+                 String s = new DataFormatter().formatCellValue(cell);
+                if (s != null && !s.isBlank()) { v = s; t = 1; }
+            }
+        }
+        boolean hasValue =
+                v != null && (!(v instanceof String sv) || !sv.isBlank());
+
+        boolean hasStyle = PoiToUniverStyleMapper.hasRenderableStyle(style);
+        if (!hasValue && !hasStyle) return null;
+
+        // UniverCell must allow v null but s not null
+        return new UniverCell(v, style, t);
+    }
 
 
-    public byte[] applySnapshotValues(Long documentId, UniverWorkbookData snapshot) {
+    //------------------Apply snapshot values to Excel document ------------------
+
+    public byte[] applySnapShot(Long documentId, UniverWorkbookData snapshot) {
         byte[] base = excelDocumentService.getExcelDocument(documentId).getData();
 
         try (InputStream is = new ByteArrayInputStream(base);
              Workbook wb = WorkbookFactory.create(is);
              ByteArrayOutputStream os = new ByteArrayOutputStream()) {
 
+            UniverToPoiStyleMapper.Context styleCtx = new UniverToPoiStyleMapper.Context(wb);
+
             List<String> order = snapshot.sheetOrder();
             if (order == null || order.isEmpty()) {
                 throw new IllegalArgumentException("Snapshot sheetOrder is empty");
             }
-            
-        for (int i = 0; i < order.size(); i++) {
+
+
+            for (int i = 0; i < order.size(); i++) {
             String sheetId = order.get(i);
             UniverWorksheetData ws = snapshot.sheets().get(sheetId);
             if (ws == null) continue;
 
             Sheet poiSheet = resolvePoiSheet(wb, i, ws);
-            applyWorksheetValues(poiSheet, ws);
+                applyMerges(poiSheet, ws.mergeData());
+                applyWorksheetValuesAndStyles(poiSheet, ws, snapshot, styleCtx);
         }
 
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
@@ -123,7 +170,22 @@ public class ExcelService {
     }
  }
 
-    private void applyWorksheetValues(Sheet sheet, UniverWorksheetData ws) {
+    private void applyMerges(Sheet sheet, List<UniverRange> merges) {
+        //firsr remove existing merges to avoid duplicates
+        for (int i = sheet.getNumMergedRegions() - 1; i >= 0; i--) {
+            sheet.removeMergedRegion(i);
+        }
+        if (merges == null) return;
+
+        for (UniverRange r : merges) {
+            sheet.addMergedRegion(new CellRangeAddress(
+                    r.startRow(), r.endRow(),
+                    r.startColumn(), r.endColumn()
+            ));
+        }
+    }
+
+    private void applyWorksheetValuesAndStyles(Sheet sheet, UniverWorksheetData ws,UniverWorkbookData snapshot,UniverToPoiStyleMapper.Context styleCtx) {
         int rowCount = ws.rowCount() == null ? 0 : ws.rowCount();
         int colCount = ws.columnCount() == null ? 0 : ws.columnCount();
 
@@ -152,6 +214,12 @@ public class ExcelService {
                 if (cell == null) cell = row.createCell(c);
 
                 setCellValue(cell, v);
+                UniverToPoiStyleMapper.applyCellStyle(
+                        styleCtx,
+                        cell,
+                        snapshot,
+                        uCell
+                );
             }
         }
     }
