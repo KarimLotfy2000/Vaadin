@@ -13,6 +13,11 @@ public record UniverWorksheetData(
         String name,
         Integer rowCount,
         Integer columnCount,
+        Integer defaultRowHeight,
+        Integer defaultColumnWidth,
+        Map<Integer, UniverRowData> rowData,
+        Map<Integer, UniverColumnData> columnData,
+        Integer showGridlines, // BooleanNumber: 0/1
         List<UniverRange> mergeData, // merged cells
         Map<Integer, Map<Integer, UniverCell>> cellData
 ) {}

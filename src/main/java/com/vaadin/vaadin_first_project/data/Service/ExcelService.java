@@ -7,7 +7,8 @@ import com.vaadin.vaadin_first_project.data.Univer.utils.PoiToUniverStyleMapper;
 import com.vaadin.vaadin_first_project.data.Univer.dto.styles.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.springframework.stereotype.Service;
+ import org.apache.poi.xssf.usermodel.XSSFSheet;
+ import org.springframework.stereotype.Service;
  import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,84 +25,164 @@ public class ExcelService {
     }
 
      //------------------Convert Excel document to Univer format ------------------
-    public UniverWorkbookData toUniverWorkbook(Long id){
+
+    public UniverWorkbookData toUniverWorkbook(Long id,boolean gridLines) {
         ExcelDocument document = excelDocumentService.getExcelDocument(id);
         byte[] data = document.getData();
 
-        try(Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(data))) {
-            Sheet sheet = wb.getSheetAt(0);
+        try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(data))) {
 
-            String sheetId =  "1";
             String workbookId = "wb" + UUID.randomUUID().toString().replace("-", "");
 
-            UsedRange usedRange = detectUsedRange(sheet);
-            Map<Integer, Map<Integer, UniverCell>> cellData = new HashMap<>(); // rowIndex -> (colIndex -> UniverCell)
+            Map<String, UniverWorksheetData> sheets = new LinkedHashMap<>();
+            List<String> sheetOrder = new ArrayList<>();
 
-            // Merged regions
-            List<UniverRange> mergeData = new ArrayList<>();
-            for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
-                CellRangeAddress r = sheet.getMergedRegion(i);
-                mergeData.add(new UniverRange(
-                        r.getFirstRow(),
-                        r.getFirstColumn(),
-                        r.getLastRow(),
-                        r.getLastColumn()
-                ));
+
+            for (int si = 0; si < wb.getNumberOfSheets(); si++) {
+                Sheet sheet = wb.getSheetAt(si);
+
+
+
+                String sheetId = String.valueOf(si + 1);
+                sheetOrder.add(sheetId);
+
+                UsedRange usedRange = detectUsedRange(sheet);
+
+                // merges
+                List<UniverRange> mergeData = mapMerges(sheet);
+
+                // cells
+                Map<Integer, Map<Integer, UniverCell>> cellData = mapCells(wb, sheet, usedRange);
+                int minRows = 50;
+                int minCols = 25;
+
+                int poiRowCount = Math.max(sheet.getLastRowNum() + 1, 0);
+
+                int rowCount = Math.max(Math.max(usedRange.lastRow() + 1, poiRowCount), minRows);
+                int colCount = Math.max(usedRange.lastCol() + 1, minCols);
+
+                // defaults + overrides
+                int defaultRowPx = pointsToPx(sheet.getDefaultRowHeightInPoints());
+                int defaultColPx = getDefaultColumnWidthPx(sheet);
+
+                Map<Integer, UniverRowData> rowData = mapRowData(sheet, usedRange.lastRow(), defaultRowPx);
+                Map<Integer, UniverColumnData> columnData = mapColumnData(sheet, usedRange.lastCol(), defaultColPx);
+
+                int showGridlines = gridLines ? 1 : 0;
+
+                UniverWorksheetData ws = new UniverWorksheetData(
+                        sheetId,
+                        sheet.getSheetName(),
+                        rowCount,
+                        colCount,
+                        defaultRowPx,
+                        defaultColPx,
+                        rowData,
+                        columnData,
+                        showGridlines,
+                        mergeData,
+                        cellData
+                );
+
+                sheets.put(sheetId, ws);
             }
-            // Cell data
-            for (int r = 0; r<= usedRange.lastRow; r++){
-                Row row = sheet.getRow(r);
-                if(row == null) continue;
-                Map<Integer,UniverCell> rowMap = null; // colIndex -> UniverCell
 
-                for (int c = 0; c<= usedRange.lastCol;c++){
-                    Cell cell = row.getCell(c);
-
-                    if(cell == null) continue;
-
-                    UniverCell u = convertPoiCellToUniverCell(wb, cell);
-
-                    if (u == null) continue;
-
-                    if (rowMap == null) rowMap = new HashMap<>();
-
-                    if (rowMap == null) rowMap = new HashMap<>();
-                    rowMap.put(c, u);
-                }
-                if (rowMap != null) cellData.put(r,rowMap);
-
-
-                }
-            // Ensure minimum size
-            int minRows = 100;   // to ensure height of Univer sheet
-            int minCols = 26;
-            int rowCount = Math.max(usedRange.lastRow + 1, minRows);
-            int colCount = Math.max(usedRange.lastCol + 1, minCols);
-             // Create UniverWorksheetData
-            UniverWorksheetData worksheetData = new UniverWorksheetData(
-                    sheetId,
-                    sheet.getSheetName(),
-                    rowCount,
-                    colCount,
-                    mergeData,
-                    cellData
-            );
-            // Create sheets map
-            Map<String, UniverWorksheetData> sheets = Map.of(sheetId, worksheetData);
-            // Create and return UniverWorkbookData
             return new UniverWorkbookData(
                     workbookId,
                     document.getFilename(),
                     "1.0.0",
                     "en-US",
-                    List.of(sheetId),
-                    Collections.emptyMap(), // styles can be added later
+                    sheetOrder,
+                     Collections.emptyMap(),
                     sheets
             );
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Failed to convert Excel document to Univer format", e);
         }
+    }
+    private Map<Integer, Map<Integer, UniverCell>> mapCells(Workbook wb, Sheet sheet, UsedRange usedRange) {
+        Map<Integer, Map<Integer, UniverCell>> cellData = new HashMap<>();
+
+        for (int r = 0; r <= usedRange.lastRow(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+
+            Map<Integer, UniverCell> rowMap = null;
+
+            for (int c = 0; c <= usedRange.lastCol(); c++) {
+                Cell cell = row.getCell(c);
+                if (cell == null) continue;
+
+                UniverCell u = convertPoiCellToUniverCell(wb, cell);
+                if (u == null) continue;
+
+                if (rowMap == null) rowMap = new HashMap<>();
+                rowMap.put(c, u);
+            }
+
+            if (rowMap != null) {
+                cellData.put(r, rowMap);
+            }
+        }
+
+        return cellData;
+    }
+
+
+    private static int pointsToPx(float pt) {
+        return Math.round(pt * 96f / 72f); // 1 point = 96/72 pixels
+    }
+
+
+    private int getDefaultColumnWidthPx(Sheet sheet) {
+        int defaultChars = sheet.getDefaultColumnWidth();
+        return Math.round(defaultChars * 7f + 5f);
+    }
+
+
+    private Map<Integer, UniverColumnData> mapColumnData(Sheet sheet, int lastCol, int defaultColPx) {
+        Map<Integer, UniverColumnData> out = new HashMap<>();
+
+        for (int c = 0; c <= lastCol; c++) {
+            int px = Math.round(sheet.getColumnWidthInPixels(c));
+             boolean hidden = sheet.isColumnHidden(c);
+            if (px != defaultColPx || hidden) {
+                out.put(c, new UniverColumnData(px, hidden ? 1 : 0));
+            }
+        }
+        return out;
+    }
+
+    private Map<Integer, UniverRowData> mapRowData(Sheet sheet, int lastRow, int defaultRowPx) {
+        Map<Integer, UniverRowData> out = new HashMap<>();
+
+        for (int r = 0; r <= lastRow; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+
+            int px = pointsToPx(row.getHeightInPoints());
+            boolean hidden = row.getZeroHeight();
+
+            if (px != defaultRowPx || hidden) {
+                out.put(r, new UniverRowData(px, hidden ? 1 : 0));
+            }
+        }
+        return out;
+    }
+
+    private List<UniverRange> mapMerges(Sheet sheet) {
+        List<UniverRange> mergeData = new ArrayList<>();
+        for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
+            CellRangeAddress r = sheet.getMergedRegion(i);
+            mergeData.add(new UniverRange(
+                    r.getFirstRow(),
+                    r.getFirstColumn(),
+                    r.getLastRow(),
+                    r.getLastColumn()
+            ));
+        }
+        return mergeData;
     }
 
     // Convert a POI Cell to a UniverCell
@@ -261,7 +342,7 @@ public class ExcelService {
 
 
 
-    private static final record UsedRange(int lastRow, int lastCol) { }
+    private record UsedRange(int lastRow, int lastCol) { }
 
     private UsedRange detectUsedRange(Sheet sheet) {
         int lastRow = sheet.getLastRowNum();

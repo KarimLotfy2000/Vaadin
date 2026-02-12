@@ -2,6 +2,7 @@ package com.vaadin.vaadin_first_project.views;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H3;
@@ -25,6 +26,8 @@ import com.vaadin.vaadin_first_project.views.components.UniverSheetComponent;
 import java.io.ByteArrayInputStream;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 
 @Route(value = "excel-editor")
 public class ExcelView extends VerticalLayout {
@@ -36,6 +39,7 @@ public class ExcelView extends VerticalLayout {
 
     private final Span uploadInfo = new Span("Noch keine Datei hochgeladen.");
     private final Grid<ExcelDocument> docsGrid = new Grid<>(ExcelDocument.class, false);
+    private final Map<Long, Boolean> gridLines = new HashMap<>();
 
     private final UniverSheetComponent univer;
     private final VerticalLayout editorWrapper = new VerticalLayout();
@@ -108,6 +112,10 @@ public class ExcelView extends VerticalLayout {
                         new ComponentRenderer<>(this::createDownloadLink)
                 ).setHeader("Download")
                 .setAutoWidth(true);
+        docsGrid.addColumn(
+                        new ComponentRenderer<>(this::createGridLinesCheckbox)
+                ).setHeader("Mit Gridlines anzeigen")
+                .setAutoWidth(true);
 
         docsGrid.setSelectionMode(Grid.SelectionMode.SINGLE);
         docsGrid.asSingleSelect().addValueChangeListener(e -> {
@@ -118,6 +126,7 @@ public class ExcelView extends VerticalLayout {
         docsGrid.setAllRowsVisible(true);
         docsGrid.getStyle().set("overflow", "visible");
     }
+
 
     private Upload buildUpload() {
         InMemoryUploadHandler handler = UploadHandler.inMemory((metadata, data) -> {
@@ -143,7 +152,8 @@ public class ExcelView extends VerticalLayout {
                 Notification.show("Bitte eine Datei aus der Liste auswählen.");
                 return;
             }
-            UniverWorkbookData workbookData = excelService.toUniverWorkbook(selectedDocId);
+            boolean showGridLines = gridLines.getOrDefault(selectedDocId, false);
+            UniverWorkbookData workbookData = excelService.toUniverWorkbook(selectedDocId,showGridLines);
             editorWrapper.setVisible(true);
             saveAsCopyBtn.setVisible(true);
             univer.render(workbookData);
@@ -181,4 +191,13 @@ public class ExcelView extends VerticalLayout {
         return downloadLink;
 
     }
-}
+    private Component createGridLinesCheckbox(ExcelDocument doc) {
+        Checkbox gridLinesCheckbox = new Checkbox();
+        gridLinesCheckbox.setValue(gridLines.getOrDefault(doc.getId(), false));
+        gridLinesCheckbox.addValueChangeListener(e -> gridLines.put(doc.getId(), e.getValue()));
+        return gridLinesCheckbox;
+    }
+
+    }
+
+
